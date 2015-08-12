@@ -2,12 +2,19 @@
 
 # See https://jamielinux.com/docs/openssl-certificate-authority/create-the-root-pair.html
 
-# Root directories
+# Base directory
 BASE			= /home/kevin/github.com/kshortwindham/ca
-BASE_CERTS		= $(BASE)/certs
-BASE_CRL		= $(BASE)/crl
-BASE_NEWCERTS		= $(BASE)/newcerts
-BASE_PRIVATE		= $(BASE)/private
+
+# Config files		DO NOT DELETE !!
+CNF_ROOT		= $(BASE)/config/openssl.cnf-root
+CNF_INT			= $(BASE)/config/openssl.cnf-intermediate
+
+# Root directories
+ROOT			= $(BASE)/root
+ROOT_CERTS		= $(ROOT)/certs
+ROOT_CRL		= $(ROOT)/crl
+ROOT_NEWCERTS		= $(ROOT)/newcerts
+ROOT_PRIVATE		= $(ROOT)/private
 
 # Intermediate directories
 INTD			= $(BASE)/intermediate
@@ -18,25 +25,20 @@ INTD_NEWCERTS		= $(INTD)/newcerts
 INTD_PRIVATE		= $(INTD)/private
 
 # Root files
-ROOT_PRIVATE_KEY 	= $(BASE_PRIVATE)/ca.key.pem
-ROOT_CERT		= $(BASE_CERTS)/ca.cert.pem
-ROOT_SERIAL		= $(BASE)/serial
-ROOT_INDEX		= $(BASE)/index.txt
+ROOT_PRIVATE_KEY 	= $(ROOT_PRIVATE)/ca.key.pem
+ROOT_CERT		= $(ROOT_CERTS)/ca.cert.pem
+ROOT_SERIAL		= $(ROOT)/serial
+ROOT_INDEX		= $(ROOT)/index.txt
+ROOT_CRUFT		+= $(ROOT)/index.*
+ROOT_CRUFT		+= $(ROOT)/serial.*
 
-ROOT_CRUFT		+= $(BASE)/index.*
-ROOT_CRUFT		+= $(BASE)/serial.*
-
-CRL			= $(BASE_CRL)/ca.crl.pem
+CRL			= $(ROOT_CRL)/ca.crl.pem # unused
 
 ROOT_FILES		+= $(ROOT_PRIVATE_KEY)
 ROOT_FILES		+= $(ROOT_CERT)
 ROOT_FILES		+= $(ROOT_SERIAL)
 ROOT_FILES		+= $(ROOT_INDEX)
 ROOT_FILES		+= $(ROOT_CRUFT)
-
-# Precious files	DO NOT DELETE !!
-CNF_ROOT		= $(BASE)/config/openssl.cnf-root
-CNF_INT			= $(BASE)/config/openssl.cnf-intermediate
 
 # Intermediate files
 INTF_PRIVATE_KEY 	= $(INTD_PRIVATE)/intermediate.key.pem
@@ -47,56 +49,44 @@ INTF_SERIAL		= $(INTD)/serial
 INTF_INDEX		= $(INTD)/index.txt
 INTF_CRLNUMBER		= $(INTD)/crlnumber
 
-# See http://datacenteroverlords.com/2012/03/01/creating-your-own-ssl-certificate-authority/
+# Server files
 
-DEVICE_CRT	= device.crt		# public;  Device Certificate
-DEVICE_CSR	= device.csr		# public;  Device Certificate SIgning Request
-DEVICE_KEY	= device.key		# PRIVATE; Device Key
-
-DEVICE_FILES	+= $(DEVICE_CRT)
-DEVICE_FILES	+= $(DEVICE_CSR)
-DEVICE_FILES	+= $(DEVICE_KEY)
-
-ROOT_FILES	+= $(BASE_CERTS)
-ROOT_FILES	+= $(BASE_CRL)
-ROOT_FILES	+= $(BASE_NEWCERTS)
-ROOT_FILES	+= $(BASE_PRIVATE)
-ROOT_FILES	+= $(ROOT_SERIAL)
-ROOT_FILES	+= $(ROOT_INDEX)
+SERVER_KEY		= $(INTD_PRIVATE)/www.example.com.key.pem
+SERVER_CSR		= $(INTD_CSR)/www.example.com.csr.pem
+SERVER_CERT		= $(INTD_CERTS)/www.example.com.cert.pem
 
 all:
 	false
-
-device-crt:	$(DEVICE_CRT)
-device-csr:	$(DEVICE_CSR)
-device-key:	$(DEVICE_KEY)
-
-# Sign the CSR
-$(DEVICE_CRT): $(DEVICE_CSR) $(ROOT_CERT) $(ROOT_PRIVATE_KEY)
-	openssl x509 -req -in $(DEVICE_CSR) -CA $(ROOT_CERT) -CAkey $(ROOT_PRIVATE_KEY) -CAcreateserial -out $(DEVICE_CRT) -days 500
-
-# Generate the Certificate Signing Request for the Device Key
-$(DEVICE_CSR): $(DEVICE_KEY)
-	openssl req -new -key $(DEVICE_KEY) -out $(DEVICE_CSR)
-
-# Generate the Device Key; no Password
-$(DEVICE_KEY):
-	openssl genrsa -out $(DEVICE_KEY) 2048
 
 # One-time initialization
 once:
 	$(MAKE) root
 	$(MAKE) int
 
+clean:
+	$(RM) -f $(DEVICE_FILES)
+
+clean-int:
+	$(RM) -rf $(INTD)
+
+clean-root:
+	$(RM) -rf $(ROOT_FILES)
+
+danger:
+	$(MAKE) clean-int
+	$(MAKE) clean-root
+
+#------------------------------------------------------------------------------
 # Generate the Root CA
 root:
 	@echo "Generate the Root"
-	cd $(BASE)
-	mkdir -p $(BASE_CERTS)
-	mkdir -p $(BASE_CRL)
-	mkdir -p $(BASE_NEWCERTS)
-	mkdir -p $(BASE_PRIVATE)
-	chmod 700 $(BASE_PRIVATE)
+	mkdir -p $(ROOT)
+	cd $(ROOT)
+	mkdir -p $(ROOT_CERTS)
+	mkdir -p $(ROOT_CRL)
+	mkdir -p $(ROOT_NEWCERTS)
+	mkdir -p $(ROOT_PRIVATE)
+	chmod 700 $(ROOT_PRIVATE)
 	touch       $(ROOT_INDEX)
 	echo 1000 > $(ROOT_SERIAL)
 	$(MAKE) root-key
@@ -119,6 +109,7 @@ root-verify:
 	@echo "Verify the root certificate"
 	openssl x509 -noout -text -in $(ROOT_CERT)
 
+#------------------------------------------------------------------------------
 # Generate the Intermediate CA
 int:
 	@echo "Generate the Intermediate"
@@ -139,6 +130,7 @@ int:
 	$(MAKE) int-cert
 	$(MAKE) int-verify
 	$(MAKE) int-chain
+	$(MAKE) int-chain-verify
 
 int-key:
 	cd $(BASE)
@@ -176,15 +168,32 @@ int-chain-verify:
 	@echo "Verify the intermediate chain against the root CA"
 	openssl verify -CAfile $(ROOT_CERT) $(INTF_CHAIN)
 
-clean:
-	$(RM) -f $(DEVICE_FILES)
+#------------------------------------------------------------------------------
+# Generate the Server certificate
+server:
+	$(MAKE) server-key
+	$(MAKE) server-csr
+	$(MAKE) server-cert
+	$(MAKE) server-verify
 
-clean-int:
-	$(RM) -rf $(INTD)
+server-key:
+	cd $(BASE)
+	# Add "-aes256" only if you want to require a password on every restart
+	@echo "Generate the server key"
+	openssl genrsa -out $(SERVER_KEY) 2048
+	chmod 400 $(SERVER_KEY)
 
-clean-root:
-	$(RM) -rf $(ROOT_FILES)
+server-csr:
+	cd $(BASE)
+	@echo "Generate the server CSR"
+	openssl req -config $(CNF_INT) -key $(SERVER_KEY) -new -sha256 -out $(SERVER_CSR)
 
-danger:
-	$(MAKE) clean-int
-	$(MAKE) clean-root
+server-cert:
+	cd $(BASE)
+	@echo "Sign the server certificate with the intermediate CA"
+	openssl ca -config $(CNF_INT) -extensions server_cert -days 375 -notext -md sha256 -in $(SERVER_CSR) -out $(SERVER_CERT)
+	chmod 444 $(SERVER_CERT)
+
+server-verify:
+	cd $(BASE)
+	openssl x509 -noout -text -in $(SERVER_CERT)
