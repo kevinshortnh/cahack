@@ -3,21 +3,22 @@
 # See https://jamielinux.com/docs/openssl-certificate-authority/create-the-root-pair.html
 
 # Base directory
-BASE			= /home/kevin/github.com/kshortwindham/ca
+BASE			= $(shell pwd)
+CNFD			= $(BASE)/config
+ROOT			= $(BASE)/root
+INTD			= $(BASE)/intermediate
 
 # Config files		DO NOT DELETE !!
-CNF_ROOT		= $(BASE)/config/openssl.cnf-root
-CNF_INT			= $(BASE)/config/openssl.cnf-intermediate
+CNF_ROOT		= $(CNFD)/openssl.cnf-root
+CNF_INT			= $(CNFD)/openssl.cnf-intermediate
 
 # Root directories
-ROOT			= $(BASE)/root
 ROOT_CERTS		= $(ROOT)/certs
 ROOT_CRL		= $(ROOT)/crl
 ROOT_NEWCERTS		= $(ROOT)/newcerts
 ROOT_PRIVATE		= $(ROOT)/private
 
 # Intermediate directories
-INTD			= $(BASE)/intermediate
 INTD_CERTS		= $(INTD)/certs
 INTD_CRL		= $(INTD)/crl
 INTD_CSR		= $(INTD)/csr
@@ -25,20 +26,15 @@ INTD_NEWCERTS		= $(INTD)/newcerts
 INTD_PRIVATE		= $(INTD)/private
 
 # Root files
-ROOT_PRIVATE_KEY 	= $(ROOT_PRIVATE)/ca.key.pem
+ROOT_KEY 		= $(ROOT_PRIVATE)/ca.key.pem
 ROOT_CERT		= $(ROOT_CERTS)/ca.cert.pem
 ROOT_SERIAL		= $(ROOT)/serial
 ROOT_INDEX		= $(ROOT)/index.txt
 
 CRL			= $(ROOT_CRL)/ca.crl.pem # unused
 
-ROOT_FILES		+= $(ROOT_PRIVATE_KEY)
-ROOT_FILES		+= $(ROOT_CERT)
-ROOT_FILES		+= $(ROOT_SERIAL)
-ROOT_FILES		+= $(ROOT_INDEX)
-
 # Intermediate files
-INTF_PRIVATE_KEY 	= $(INTD_PRIVATE)/intermediate.key.pem
+INTF_KEY 		= $(INTD_PRIVATE)/intermediate.key.pem
 INTF_CSR		= $(INTD_CSR)/intermediate.csr.pem
 INTF_CERT		= $(INTD_CERTS)/intermediate.cert.pem
 INTF_CHAIN		= $(INTD_CERTS)/ca-chain.cert.pem
@@ -71,52 +67,44 @@ danger:
 	$(MAKE) clean-root
 
 #------------------------------------------------------------------------------
-# Generate the Root CA
-root:
-	@echo "Generate the Root"
-	mkdir -p $(ROOT)
-	cd $(ROOT)
-	mkdir -p $(ROOT_CERTS)
-	mkdir -p $(ROOT_CRL)
-	mkdir -p $(ROOT_NEWCERTS)
-	mkdir -p $(ROOT_PRIVATE)
-	chmod 700 $(ROOT_PRIVATE)
-	touch       $(ROOT_INDEX)
-	echo 1000 > $(ROOT_SERIAL)
-	$(MAKE) root-key
-	$(MAKE) root-cert
-	$(MAKE) root-verify
+# Generate the Server Certificate
+server:
+	$(MAKE) server-key
+	$(MAKE) server-csr
+	$(MAKE) server-cert
+	$(MAKE) server-verify
 
-root-key:
-	cd $(BASE)
-	@echo "Generate the root key"
-	openssl genrsa -aes256 -out $(ROOT_PRIVATE_KEY) 4096
-	chmod 400 $(ROOT_PRIVATE_KEY)
+server-key:
+	# Add "-aes256" only if you want to require a password on every restart
+	@echo "Generate the Server Key"
+	openssl genrsa -out $(SERVER_KEY) 2048
+	chmod 400 $(SERVER_KEY)
 
-root-cert:
-	cd $(BASE)
-	@echo "Generate the root certificate"
-	openssl req -config $(CNF_ROOT) -key $(ROOT_PRIVATE_KEY) -new -x509 -days 7300 -sha256 -extensions v3_ca -out $(ROOT_CERT)
+server-csr:
+	@echo "Generate the Server CSR"
+	openssl req -config $(CNF_INT) -key $(SERVER_KEY) -new -sha256 -out $(SERVER_CSR)
 
-root-verify:
-	cd $(BASE)
-	@echo "Verify the root certificate"
-	openssl x509 -noout -text -in $(ROOT_CERT)
+server-cert:
+	@echo "Sign the Server Certificate with the Intermediate CA"
+	openssl ca -config $(CNF_INT) -extensions server_cert -days 375 -notext -md sha256 -in $(SERVER_CSR) -out $(SERVER_CERT)
+	chmod 444 $(SERVER_CERT)
+
+server-verify:
+	@echo "Verify the Server Certificate"
+	openssl x509 -noout -text -in $(SERVER_CERT)
 
 #------------------------------------------------------------------------------
 # Generate the Intermediate CA
 int:
 	@echo "Generate the Intermediate"
-	cd $(BASE)
 	mkdir -p $(INTD)
-	cd $(INTD)
 	mkdir -p $(INTD_CERTS)
 	mkdir -p $(INTD_CRL)
 	mkdir -p $(INTD_CSR)
 	mkdir -p $(INTD_NEWCERTS)
 	mkdir -p $(INTD_PRIVATE)
 	chmod 700 $(INTD_PRIVATE)
-	touch       $(INTF_INDEX)
+	touch $(INTF_INDEX)
 	echo 1000 > $(INTF_SERIAL)
 	echo 1000 > $(INTF_CRLNUMBER)
 	$(MAKE) int-key
@@ -127,67 +115,60 @@ int:
 	$(MAKE) int-chain-verify
 
 int-key:
-	cd $(BASE)
-	@echo "Generate the intermediate key"
-	openssl genrsa -aes256 -out $(INTF_PRIVATE_KEY) 4096
-	chmod 400 $(INTF_PRIVATE_KEY)
+	@echo "Generate the Intermediate Key"
+	openssl genrsa -aes256 -out $(INTF_KEY) 4096
+	chmod 400 $(INTF_KEY)
 
 int-csr:
-	cd $(BASE)
-	@echo "Generate the intermediate CSR"
-	openssl req -config $(CNF_INT) -new -sha256 -key $(INTF_PRIVATE_KEY) -out $(INTF_CSR)
+	@echo "Generate the Intermediate CSR"
+	openssl req -config $(CNF_INT) -new -sha256 -key $(INTF_KEY) -out $(INTF_CSR)
 
 int-cert:
-	cd $(BASE)
-	@echo "Sign the intermediate certificate with the root CA"
+	@echo "Sign the Intermediate Certificate with the Root CA"
 	openssl ca -config $(CNF_ROOT) -extensions v3_intermediate_ca -days 3650 -notext -md sha256 -in $(INTF_CSR) -out $(INTF_CERT)
 	chmod 444 $(INTF_CERT)
 
 int-verify:
-	cd $(BASE)
-	@echo "Verify the intermediate CA"
+	@echo "Verify the Intermediate CA"
 	openssl x509 -noout -text -in $(INTF_CERT)
-	@echo "Verify the intermediate CA against the root CA"
+	@echo "Verify the Intermediate CA against the Root CA"
 	openssl verify -CAfile $(ROOT_CERT) $(INTF_CERT)
 
 int-chain:
-	cd $(BASE)
 	cat $(INTF_CERT) $(ROOT_CERT) > $(INTF_CHAIN)
 	chmod 444 $(INTF_CHAIN)
 
 int-chain-verify:
-	cd $(BASE)
-	@echo "Verify the intermediate chain"
+	@echo "Verify the Intermediate chain"
 	openssl x509 -noout -text -in $(INTF_CHAIN)
-	@echo "Verify the intermediate chain against the root CA"
+	@echo "Verify the Intermediate chain against the Root CA"
 	openssl verify -CAfile $(ROOT_CERT) $(INTF_CHAIN)
 
 #------------------------------------------------------------------------------
-# Generate the Server certificate
-server:
-	$(MAKE) server-key
-	$(MAKE) server-csr
-	$(MAKE) server-cert
-	$(MAKE) server-verify
+# Generate the Root CA
+root:
+	@echo "Generate the Root"
+	mkdir -p $(ROOT)
+	mkdir -p $(ROOT_CERTS)
+	mkdir -p $(ROOT_CRL)
+	mkdir -p $(ROOT_NEWCERTS)
+	mkdir -p $(ROOT_PRIVATE)
+	chmod 700 $(ROOT_PRIVATE)
+	touch $(ROOT_INDEX)
+	echo 1000 > $(ROOT_SERIAL)
+	$(MAKE) root-key
+	$(MAKE) root-cert
+	$(MAKE) root-verify
 
-server-key:
-	cd $(BASE)
-	# Add "-aes256" only if you want to require a password on every restart
-	@echo "Generate the server key"
-	openssl genrsa -out $(SERVER_KEY) 2048
-	chmod 400 $(SERVER_KEY)
+root-key:
+	@echo "Generate the Root Key"
+	openssl genrsa -aes256 -out $(ROOT_KEY) 4096
+	chmod 400 $(ROOT_KEY)
 
-server-csr:
-	cd $(BASE)
-	@echo "Generate the server CSR"
-	openssl req -config $(CNF_INT) -key $(SERVER_KEY) -new -sha256 -out $(SERVER_CSR)
+root-cert:
+	@echo "Generate the Root Certificate"
+	openssl req -config $(CNF_ROOT) -key $(ROOT_KEY) -new -x509 -days 7300 -sha256 -extensions v3_ca -out $(ROOT_CERT)
 
-server-cert:
-	cd $(BASE)
-	@echo "Sign the server certificate with the intermediate CA"
-	openssl ca -config $(CNF_INT) -extensions server_cert -days 375 -notext -md sha256 -in $(SERVER_CSR) -out $(SERVER_CERT)
-	chmod 444 $(SERVER_CERT)
-
-server-verify:
-	cd $(BASE)
-	openssl x509 -noout -text -in $(SERVER_CERT)
+root-verify:
+	@echo "Verify the Root Certificate"
+	openssl x509 -noout -text -in $(ROOT_CERT)
