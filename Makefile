@@ -42,6 +42,7 @@ CNF_INT			= $(BASE)/config/openssl.cnf-intermediate
 INTF_PRIVATE_KEY 	= $(INTD_PRIVATE)/intermediate.key.pem
 INTF_CSR		= $(INTD_CSR)/intermediate.csr.pem
 INTF_CERT		= $(INTD_CERTS)/intermediate.cert.pem
+INTF_CHAIN		= $(INTD_CERTS)/ca-chain.cert.pem
 INTF_SERIAL		= $(INTD)/serial
 INTF_INDEX		= $(INTD)/index.txt
 INTF_CRLNUMBER		= $(INTD)/crlnumber
@@ -137,6 +138,7 @@ int:
 	$(MAKE) int-csr
 	$(MAKE) int-cert
 	$(MAKE) int-verify
+	$(MAKE) int-chain
 
 int-key:
 	cd $(BASE)
@@ -161,6 +163,18 @@ int-verify:
 	openssl x509 -noout -text -in $(INTF_CERT)
 	@echo "Verify the intermediate CA against the root CA"
 	openssl verify -CAfile $(ROOT_CERT) $(INTF_CERT)
+
+int-chain:
+	cd $(BASE)
+	cat $(INTF_CERT) $(ROOT_CERT) > $(INTF_CHAIN)
+	chmod 444 $(INTF_CHAIN)
+
+int-chain-verify:
+	cd $(BASE)
+	@echo "Verify the intermediate chain"
+	openssl x509 -noout -text -in $(INTF_CHAIN)
+	@echo "Verify the intermediate chain against the root CA"
+	openssl verify -CAfile $(ROOT_CERT) $(INTF_CHAIN)
 
 clean:
 	$(RM) -f $(DEVICE_FILES)
