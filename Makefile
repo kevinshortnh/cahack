@@ -73,6 +73,7 @@ server:
 	$(MAKE) server-csr
 	$(MAKE) server-cert
 	$(MAKE) server-verify
+	$(MAKE) server-chain-verify
 
 server-key:
 	# Add "-aes256" only if you want to require a password on every restart
@@ -92,6 +93,10 @@ server-cert:
 server-verify:
 	@echo "Verify the Server Certificate"
 	openssl x509 -noout -text -in $(SERVER_CERT)
+
+server-chain-verify:
+	@echo "Verify the Server Certificate against the Chain Of Trust"
+	openssl verify -CAfile $(INTF_CHAIN) $(SERVER_CERT)
 
 #------------------------------------------------------------------------------
 # Generate the Intermediate CA
