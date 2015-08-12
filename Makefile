@@ -29,8 +29,6 @@ ROOT_PRIVATE_KEY 	= $(ROOT_PRIVATE)/ca.key.pem
 ROOT_CERT		= $(ROOT_CERTS)/ca.cert.pem
 ROOT_SERIAL		= $(ROOT)/serial
 ROOT_INDEX		= $(ROOT)/index.txt
-ROOT_CRUFT		+= $(ROOT)/index.*
-ROOT_CRUFT		+= $(ROOT)/serial.*
 
 CRL			= $(ROOT_CRL)/ca.crl.pem # unused
 
@@ -38,7 +36,6 @@ ROOT_FILES		+= $(ROOT_PRIVATE_KEY)
 ROOT_FILES		+= $(ROOT_CERT)
 ROOT_FILES		+= $(ROOT_SERIAL)
 ROOT_FILES		+= $(ROOT_INDEX)
-ROOT_FILES		+= $(ROOT_CRUFT)
 
 # Intermediate files
 INTF_PRIVATE_KEY 	= $(INTD_PRIVATE)/intermediate.key.pem
@@ -63,14 +60,11 @@ once:
 	$(MAKE) root
 	$(MAKE) int
 
-clean:
-	$(RM) -f $(DEVICE_FILES)
-
 clean-int:
 	$(RM) -rf $(INTD)
 
 clean-root:
-	$(RM) -rf $(ROOT_FILES)
+	$(RM) -rf $(ROOT)
 
 danger:
 	$(MAKE) clean-int
