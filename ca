@@ -1,9 +1,23 @@
 #!/bin/bash
 
-set -x
+# set -r			# restricted shell
+# set -x			# verbose
+
+# Handle errors
+err () {
+  errorcode=$? # save the exit code as the first thing done in the trap function
+  echo "error $errorcode"
+  echo "the command executing at the time of the error was:"
+  echo "$BASH_COMMAND"
+  echo "on line ${BASH_LINENO[0]}"
+  exit $errcode  # or use some other value or do return instead
+  }
+trap err ERR
+set -e				# quit on error
 
 # UNIX commands
 export RM=/bin/rm
+export RM=rm
 
 # Base directory
 export BASE=${PWD}
@@ -145,7 +159,7 @@ int_chain() {
 int_chain_verify() {
   echo "Verify the Intermediate chain"
   openssl x509 -noout -text -in ${INTF_CHAIN}
-  @echo "Verify the Intermediate chain against the Root CA"
+  echo "Verify the Intermediate chain against the Root CA"
   openssl verify -CAfile ${ROOT_CERT} ${INTF_CHAIN}
 }
 
@@ -183,27 +197,34 @@ root_verify() {
 }
 
 case $1 in
+
   once)			once ;;
+
   clean-int)		clean_int ;;
   clean-root)		clean_root ;;
+
   danger)		danger ;;
+
   server)		server ;;
   server-key)		server_key ;;
   server-csr)		server_csr ;;
   server-cert)		server_cert ;;
   server-verify)	server_verify ;;
   server-chain-verify)	server_chain_verify ;;
+
   int)			int ;;
-  int-key)		int_key ;;
-  int-csr)		int_csr ;;
-  int-cert)		int_cert ;;
-  int-verify)		int_verify ;;
-  int-chain)		int_chain ;;
-  int-chain-verify)	int_chain_verify ;;
+# int-key)		int_key ;;
+# int-csr)		int_csr ;;
+# int-cert)		int_cert ;;
+# int-verify)		int_verify ;;
+# int-chain)		int_chain ;;
+# int-chain-verify)	int_chain_verify ;;
+
   root)			root ;;
-  root-key)		root_key ;;
-  root-cert)		root_cert ;;
-  root-verify)		root_verify ;;
+# root-key)		root_key ;;
+# root-cert)		root_cert ;;
+# root-verify)		root_verify ;;
+
   *)
     echo BAD
     exit 1
