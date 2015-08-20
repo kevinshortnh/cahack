@@ -183,72 +183,27 @@ root_verify() {
 }
 
 case $1 in
-  all)
-    all
-    ;;
-  once)
-    once
-    ;;
-  clean-int)
-    clean_int
-    ;;
-  clean-root)
-    clean_root
-    ;;
-  danger)
-    danger
-    ;;
-  server)
-    server
-    ;;
-  server-key)
-    server_key
-    ;;
-  server-csr)
-    server_csr
-    ;;
-  server-cert)
-    server_cert
-    ;;
-  server-verify)
-    server_verify
-    ;;
-  server-chain-verify)
-    server_chain_verify
-    ;;
-  int)
-    int
-    ;;
-  int-key)
-    int_key
-    ;;
-  int-csr)
-    int_csr
-    ;;
-  int-cert)
-    int_cert
-    ;;
-  int-verify)
-    int_verify
-    ;;
-  int-chain)
-    int_chain
-    ;;
-  int-chain-verify)
-    int_chain_verify
-    ;;
-  root)
-    root
-    ;;
-  root-key)
-    root_key
-    ;;
-  root-cert)
-    root_cert
-    ;;
-  root-verify)
-    root_verify
-    ;;
+  once)			once ;;
+  clean-int)		clean_int ;;
+  clean-root)		clean_root ;;
+  danger)		danger ;;
+  server)		server ;;
+  server-key)		server_key ;;
+  server-csr)		server_csr ;;
+  server-cert)		server_cert ;;
+  server-verify)	server_verify ;;
+  server-chain-verify)	server_chain_verify ;;
+  int)			int ;;
+  int-key)		int_key ;;
+  int-csr)		int_csr ;;
+  int-cert)		int_cert ;;
+  int-verify)		int_verify ;;
+  int-chain)		int_chain ;;
+  int-chain-verify)	int_chain_verify ;;
+  root)			root ;;
+  root-key)		root_key ;;
+  root-cert)		root_cert ;;
+  root-verify)		root_verify ;;
   *)
     echo BAD
     exit 1
