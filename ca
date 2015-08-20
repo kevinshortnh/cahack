@@ -1,0 +1,258 @@
+#!/bin/bash
+
+set -x
+
+# UNIX commands
+export RM=/bin/rm
+
+# Base directory
+export BASE=${PWD}
+export CNFD=${BASE}/config
+export ROOT=${BASE}/root
+export INTD=${BASE}/intermediate
+
+# Config files -- DO NOT DELETE !!
+export CNF_ROOT=${CNFD}/openssl.cnf-root
+export CNF_INT=${CNFD}/openssl.cnf-intermediate
+
+# Root directories
+export ROOT_CERTS=${ROOT}/certs
+export ROOT_CRL=${ROOT}/crl
+export ROOT_NEWCERTS=${ROOT}/newcerts
+export ROOT_PRIVATE=${ROOT}/private
+
+# Intermediate directories
+export INTD_CERTS=${INTD}/certs
+export INTD_CRL=${INTD}/crl
+export INTD_CSR=${INTD}/csr
+export INTD_NEWCERTS=${INTD}/newcerts
+export INTD_PRIVATE=${INTD}/private
+
+# Root files
+export ROOT_KEY=${ROOT_PRIVATE}/ca.key.pem
+export ROOT_CERT=${ROOT_CERTS}/ca.cert.pem
+export ROOT_SERIAL=${ROOT}/serial
+export ROOT_INDEX=${ROOT}/index.txt
+
+export CRL=${ROOT_CRL}/ca.crl.pem # unused
+
+# Intermediate files
+export INTF_KEY=${INTD_PRIVATE}/intermediate.key.pem
+export INTF_CSR=${INTD_CSR}/intermediate.csr.pem
+export INTF_CERT=${INTD_CERTS}/intermediate.cert.pem
+export INTF_CHAIN=${INTD_CERTS}/ca-chain.cert.pem
+export INTF_SERIAL=${INTD}/serial
+export INTF_INDEX=${INTD}/index.txt
+export INTF_CRLNUMBER=${INTD}/crlnumber
+
+# Server files
+
+export SERVER_KEY=${INTD_PRIVATE}/www.example.com.key.pem
+export SERVER_CSR=${INTD_CSR}/www.example.com.csr.pem
+export SERVER_CERT=${INTD_CERTS}/www.example.com.cert.pem
+
+# One-time initialization
+once() {
+  root
+  int
+}
+
+danger() {
+  clean_int
+  clean_root
+}
+
+# Generate the Server Certificate
+server() {
+  server_key
+  server_csr
+  server_cert
+  server_verify
+  server_chain_verify
+}
+server_key() {
+  echo "Generate the Server Key"
+  # Add "-aes256" only if you want to require a password on every restart
+  openssl genrsa -out ${SERVER_KEY} 2048
+  chmod 400 ${SERVER_KEY}
+}
+server_csr() {
+  echo "Generate the Server CSR"
+  openssl req -config ${CNF_INT} -key ${SERVER_KEY} -new -sha256 -out ${SERVER_CSR}
+}
+server_cert() {
+  echo "Sign the Server Certificate with the Intermediate CA"
+  openssl ca -config ${CNF_INT} -extensions server_cert -days 375 -notext -md sha256 -in ${SERVER_CSR} -out ${SERVER_CERT}
+  chmod 444 ${SERVER_CERT}
+}
+server_verify() {
+  echo "Verify the Server Certificate"
+  openssl x509 -noout -text -in ${SERVER_CERT}
+}
+server_chain_verify() {
+  echo "Verify the Server Certificate against the Chain Of Trust"
+  openssl verify -CAfile ${INTF_CHAIN} ${SERVER_CERT}
+}
+
+# Generate the Intermediate CA
+clean_int() {
+  ${RM} -rf ${INTD}
+}
+int() {
+  echo "Generate the Intermediate"
+  mkdir -p ${INTD}
+  mkdir -p ${INTD_CERTS}
+  mkdir -p ${INTD_CRL}
+  mkdir -p ${INTD_CSR}
+  mkdir -p ${INTD_NEWCERTS}
+  mkdir -p ${INTD_PRIVATE}
+  chmod 700 ${INTD_PRIVATE}
+  touch ${INTF_INDEX}
+  echo 1000 > ${INTF_SERIAL}
+  echo 1000 > ${INTF_CRLNUMBER}
+  int_key
+  int_csr
+  int_cert
+  int_verify
+  int_chain
+  int_chain_verify
+}
+int_key() {
+  echo "Generate the Intermediate Key"
+  openssl genrsa -aes256 -out ${INTF_KEY} 4096
+  chmod 400 ${INTF_KEY}
+}
+int_csr() {
+  echo "Generate the Intermediate CSR"
+  openssl req -config ${CNF_INT} -new -sha256 -key ${INTF_KEY} -out ${INTF_CSR}
+}
+int_cert() {
+  echo "Sign the Intermediate Certificate with the Root CA"
+  openssl ca -config ${CNF_ROOT} -extensions v3_intermediate_ca -days 3650 -notext -md sha256 -in ${INTF_CSR} -out ${INTF_CERT}
+  chmod 444 ${INTF_CERT}
+}
+int_verify() {
+  echo "Verify the Intermediate CA"
+  openssl x509 -noout -text -in ${INTF_CERT}
+  echo "Verify the Intermediate CA against the Root CA"
+  openssl verify -CAfile ${ROOT_CERT} ${INTF_CERT}
+}
+int_chain() {
+  echo "Create the certificate chain"
+  cat ${INTF_CERT} ${ROOT_CERT} > ${INTF_CHAIN}
+  chmod 444 ${INTF_CHAIN}
+}
+int_chain_verify() {
+  echo "Verify the Intermediate chain"
+  openssl x509 -noout -text -in ${INTF_CHAIN}
+  @echo "Verify the Intermediate chain against the Root CA"
+  openssl verify -CAfile ${ROOT_CERT} ${INTF_CHAIN}
+}
+
+# Generate the Root CA
+clean_root() {
+  ${RM} -rf ${ROOT}
+}
+root() {
+  echo "Generate the Root"
+  mkdir -p ${ROOT}
+  mkdir -p ${ROOT_CERTS}
+  mkdir -p ${ROOT_CRL}
+  mkdir -p ${ROOT_NEWCERTS}
+  mkdir -p ${ROOT_PRIVATE}
+  chmod 700 ${ROOT_PRIVATE}
+  touch ${ROOT_INDEX}
+  echo 1000 > ${ROOT_SERIAL}
+  root_key
+  root_cert
+  root_verify
+}
+root_key() {
+  echo "Generate the Root Key"
+  openssl genrsa -aes256 -out ${ROOT_KEY} 4096
+  chmod 400 ${ROOT_KEY}
+}
+root_cert() {
+  echo "Generate the Root Certificate"
+  openssl req -config ${CNF_ROOT} -key ${ROOT_KEY} -new -x509 -days 7300 -sha256 -extensions v3_ca -out ${ROOT_CERT}
+}
+root_verify() {
+  echo "Verify the Root Certificate"
+  openssl x509 -noout -text -in ${ROOT_CERT}
+
+}
+
+case $1 in
+  all)
+    all
+    ;;
+  once)
+    once
+    ;;
+  clean-int)
+    clean_int
+    ;;
+  clean-root)
+    clean_root
+    ;;
+  danger)
+    danger
+    ;;
+  server)
+    server
+    ;;
+  server-key)
+    server_key
+    ;;
+  server-csr)
+    server_csr
+    ;;
+  server-cert)
+    server_cert
+    ;;
+  server-verify)
+    server_verify
+    ;;
+  server-chain-verify)
+    server_chain_verify
+    ;;
+  int)
+    int
+    ;;
+  int-key)
+    int_key
+    ;;
+  int-csr)
+    int_csr
+    ;;
+  int-cert)
+    int_cert
+    ;;
+  int-verify)
+    int_verify
+    ;;
+  int-chain)
+    int_chain
+    ;;
+  int-chain-verify)
+    int_chain_verify
+    ;;
+  root)
+    root
+    ;;
+  root-key)
+    root_key
+    ;;
+  root-cert)
+    root_cert
+    ;;
+  root-verify)
+    root_verify
+    ;;
+  *)
+    echo BAD
+    exit 1
+    ;;
+esac
+
+exit 0
